@@ -1,0 +1,417 @@
+@import './fonts.css';
+@import './tailwind.css';
+@import './theme.css';
+
+/* Apply rounded font globally */
+* {
+  font-family: ui-rounded, 'SF Pro Rounded', -apple-system-ui-rounded, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Landing Page Float-in Animations */
+@keyframes float-in-title {
+  0% {
+    opacity: 0;
+    transform: translateY(-50px) scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes float-in-subtitle {
+  0% {
+    opacity: 0;
+    transform: translateY(-30px) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes float-in-description {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes float-in-buttons {
+  0% {
+    opacity: 0;
+    transform: translateY(30px) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-float-in-title {
+  animation: float-in-title 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-float-in-subtitle {
+  animation: float-in-subtitle 1s cubic-bezier(0.16, 1, 0.3, 1) 0.3s forwards;
+  opacity: 0;
+}
+
+.animate-float-in-description {
+  animation: float-in-description 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.6s forwards;
+  opacity: 0;
+}
+
+.animate-float-in-buttons {
+  animation: float-in-buttons 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.9s forwards;
+  opacity: 0;
+}
+
+/* Leaflet Map Styles */
+.leaflet-container {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 16px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  padding: 0;
+}
+
+.leaflet-popup-tip {
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.custom-marker {
+  border: none !important;
+  background: transparent !important;
+}
+
+.custom-popup .leaflet-popup-content {
+  margin: 0;
+  padding: 0;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.leaflet-popup-close-button {
+  display: none !important;
+}
+
+.leaflet-control-zoom {
+  display: none;
+}
+
+/* Custom scrollbar for popup content */
+.leaflet-popup-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.leaflet-popup-content::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 10px;
+}
+
+.leaflet-popup-content::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #126DA6 0%, #2A95BF 100%);
+  border-radius: 10px;
+}
+/* Modal Animations */
+@keyframes modal-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modal-zoom-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-modal-fade-in {
+  animation: modal-fade-in 0.2s ease-out;
+}
+
+.animate-modal-zoom-in {
+  animation: modal-zoom-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Backdrop blur animation */
+.animate-backdrop-blur {
+  animation: modal-fade-in 0.2s ease-out;
+  backdrop-filter: blur(4px);
+}
+/* Theme Selector Animations */
+@keyframes theme-dropdown-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.theme-dropdown {
+  animation: theme-dropdown-in 0.2s ease-out;
+}
+
+/* Map Loading Animation */
+@keyframes map-loading-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.map-loading-spinner {
+  animation: map-loading-spin 1s linear infinite;
+}
+
+/* Smooth theme transitions */
+.leaflet-tile-pane {
+  transition: opacity 0.3s ease-in-out;
+}
+
+/* Beautiful Landing Page Background Animations */
+@keyframes float-gentle {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(5deg);
+  }
+}
+
+@keyframes float-slow {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-15px) rotate(-3deg);
+  }
+}
+
+@keyframes pulse-soft {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes drift {
+  0% {
+    transform: translateX(0px) translateY(0px);
+  }
+  33% {
+    transform: translateX(10px) translateY(-5px);
+  }
+  66% {
+    transform: translateX(-5px) translateY(10px);
+  }
+  100% {
+    transform: translateX(0px) translateY(0px);
+  }
+}
+
+/* Wave Animations */
+@keyframes wave-flow-1 {
+  0% {
+    transform: translateX(-100px) translateY(0px);
+  }
+  50% {
+    transform: translateX(50px) translateY(-10px);
+  }
+  100% {
+    transform: translateX(-100px) translateY(0px);
+  }
+}
+
+@keyframes wave-flow-2 {
+  0% {
+    transform: translateX(100px) translateY(5px);
+  }
+  50% {
+    transform: translateX(-50px) translateY(-5px);
+  }
+  100% {
+    transform: translateX(100px) translateY(5px);
+  }
+}
+
+@keyframes wave-flow-3 {
+  0% {
+    transform: translateX(-50px) translateY(-3px);
+  }
+  50% {
+    transform: translateX(75px) translateY(8px);
+  }
+  100% {
+    transform: translateX(-50px) translateY(-3px);
+  }
+}
+
+/* Water Droplet Animations */
+@keyframes water-drop {
+  0% {
+    transform: translateY(-20px) scale(0.8);
+    opacity: 0;
+  }
+  50% {
+    transform: translateY(10px) scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(30px) scale(0.9);
+    opacity: 0;
+  }
+}
+
+@keyframes wave-pulse {
+  0%, 100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scale(1.3) rotate(10deg);
+    opacity: 0.8;
+  }
+}
+
+/* Cloud Floating */
+@keyframes cloud-drift {
+  0% {
+    transform: translateX(-30px);
+  }
+  50% {
+    transform: translateX(30px);
+  }
+  100% {
+    transform: translateX(-30px);
+  }
+}
+
+/* Wind Blowing */
+@keyframes wind-blow {
+  0%, 100% {
+    transform: translateX(0px) rotate(0deg);
+    opacity: 0.3;
+  }
+  25% {
+    transform: translateX(15px) rotate(5deg);
+    opacity: 0.7;
+  }
+  75% {
+    transform: translateX(-10px) rotate(-3deg);
+    opacity: 0.5;
+  }
+}
+
+/* Sun Glow */
+@keyframes sun-glow {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.3;
+    filter: brightness(1);
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.6;
+    filter: brightness(1.2);
+  }
+}
+
+/* Particle Stream Flow - REMOVED */
+
+/* Enhanced Orb Pulsing */
+@keyframes orb-pulse-enhanced {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.2;
+  }
+  33% {
+    transform: scale(1.2);
+    opacity: 0.4;
+  }
+  66% {
+    transform: scale(0.9);
+    opacity: 0.3;
+  }
+}
+
+/* Apply animations to elements */
+.wave-layer-1 {
+  animation: wave-flow-1 15s ease-in-out infinite;
+}
+
+.wave-layer-2 {
+  animation: wave-flow-2 12s ease-in-out infinite;
+}
+
+.wave-layer-3 {
+  animation: wave-flow-3 18s ease-in-out infinite;
+}
+
+.water-droplet {
+  animation: water-drop 4s ease-in-out infinite;
+}
+
+.wave-icon {
+  animation: wave-pulse 6s ease-in-out infinite;
+}
+
+.cloud-float {
+  animation: cloud-drift 20s ease-in-out infinite;
+}
+
+.wind-blow {
+  animation: wind-blow 8s ease-in-out infinite;
+}
+
+.sun-glow {
+  animation: sun-glow 10s ease-in-out infinite;
+}
+
+/* Apply animations to background icons */
+.landing-bg-icon {
+  animation: float-gentle 6s ease-in-out infinite;
+}
+
+.landing-bg-icon:nth-child(2n) {
+  animation: float-slow 8s ease-in-out infinite;
+}
+
+.landing-bg-icon:nth-child(3n) {
+  animation: drift 10s ease-in-out infinite;
+}
+
+.landing-bg-orb {
+  animation: orb-pulse-enhanced 6s ease-in-out infinite;
+}
+
+/* Radial gradient utility */
+.bg-gradient-radial {
+  background: radial-gradient(circle, var(--tw-gradient-stops));
+}
