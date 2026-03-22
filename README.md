@@ -251,12 +251,6 @@ Generates optimized bundle:
 - **JavaScript**: 783.64 kB (gzipped: 221.08 kB)
 - **Build time**: ~9 seconds
 
-### **Deployment Options**
-- **Vercel**: Zero-config deployment with GitHub integration
-- **Netlify**: Static site hosting with form handling
-- **AWS S3 + CloudFront**: Scalable CDN deployment
-- **Docker**: Containerized deployment for any platform
-
 ### **Environment Variables for Production**
 Ensure all environment variables are properly configured in your deployment platform.
 
@@ -299,37 +293,15 @@ We welcome contributions! Please follow these steps:
 
 1. **Fork** the repository
 2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
-4. **Push** to the branch (`git push origin feature/amazing-feature`)
-5. **Open** a Pull Request
-
-### **Development Guidelines**
-- Follow TypeScript best practices
-- Maintain component modularity
-- Add proper error handling
-- Update documentation for new features
-- Test AI features thoroughly
-
 ---
 
 ## 📚 **Documentation**
-
-### **Additional Resources**
-- **[AI Setup Guide](QUICK_AI_SETUP.md)**: Complete AI API configuration
-- **[Project Audit](COMPREHENSIVE_FILE_AUDIT.md)**: Detailed file analysis
-- **[AI Features](CURRENT_AI_FEATURES.md)**: In-depth AI documentation
-- **[Database Schema](database/schema.sql)**: Complete PostgreSQL schema
 
 ### **API Documentation**
 - **Supabase**: Real-time database operations
 - **OpenAI**: Advanced text analysis
 - **Hugging Face**: Emotion detection models
 - **Leaflet**: Interactive map integration
-
----
-
-## 🐛 **Troubleshooting**
-
 ### **Common Issues**
 
 **Development Server Won't Start**
@@ -340,18 +312,19 @@ npm install
 npm run dev
 ```
 
-**Supabase Connection Issues**
-- Verify `.env.local` configuration
-- Check Supabase project status
-- Ensure RLS policies are properly configured
+## 📚 **Documentation**
 
-**AI APIs Not Working**
-- Verify API keys in `.env.local`
-- Check API quotas and billing
-- Use AI Test Panel for debugging
+### **Additional Resources**
+- **AI Setup Guide**: Complete AI API configuration
+- **Project Audit**: Detailed file analysis
+- **AI Features**: In-depth AI documentation
+- **Database Schema**: Complete PostgreSQL schema
 
-**Build Failures**
-```bash
+### **API Documentation**
+- **Supabase**: Real-time database operations
+- **OpenAI**: Advanced text analysis
+- **Hugging Face**: Emotion detection models
+- **Leaflet**: Interactive map integration
 # Type check first
 npm run type-check
 # Then build
@@ -369,9 +342,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 👥 **Team**
 
 **JOFLOW** is developed as a capstone project by Team 9:
-- **Nguyen Yen Nhi**
-- **Ho Hong Anh**  
-- **Ta Nhat Duy Do**
+- **Nguyen Yen Nhi Ho**
+- **Hong Anh Ta**  
+- **Nhat Duy Do**
 
 ---
 
