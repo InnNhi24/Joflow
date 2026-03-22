@@ -213,7 +213,6 @@ Create Request → AI Urgency Analysis → Smart Matching → Connect with Giver
 npm run dev          # Start development server
 npm run build        # Build for production
 npm run preview      # Preview production build
-npm run type-check   # Run TypeScript checks
 ```
 
 ### **Project Structure**
@@ -287,31 +286,6 @@ Ensure all environment variables are properly configured in your deployment plat
 
 ---
 
-## 🤝 **Contributing**
-
-We welcome contributions! Please follow these steps:
-
-1. **Fork** the repository
-2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
----
-
-## 📚 **Documentation**
-
-### **API Documentation**
-- **Supabase**: Real-time database operations
-- **OpenAI**: Advanced text analysis
-- **Hugging Face**: Emotion detection models
-- **Leaflet**: Interactive map integration
-### **Common Issues**
-
-**Development Server Won't Start**
-```bash
-# Clear node_modules and reinstall
-rm -rf node_modules package-lock.json
-npm install
-npm run dev
-```
-
 ## 📚 **Documentation**
 
 ### **Additional Resources**
@@ -325,6 +299,33 @@ npm run dev
 - **OpenAI**: Advanced text analysis
 - **Hugging Face**: Emotion detection models
 - **Leaflet**: Interactive map integration
+
+---
+
+## 🐛 **Troubleshooting**
+
+### **Common Issues**
+
+**Development Server Won't Start**
+```bash
+# Clear node_modules and reinstall
+rm -rf node_modules package-lock.json
+npm install
+npm run dev
+```
+
+**Supabase Connection Issues**
+- Verify `.env.local` configuration
+- Check Supabase project status
+- Ensure RLS policies are properly configured
+
+**AI APIs Not Working**
+- Verify API keys in `.env.local`
+- Check API quotas and billing
+- Use AI Test Panel for debugging
+
+**Build Failures**
+```bash
 # Type check first
 npm run type-check
 # Then build
