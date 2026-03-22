@@ -369,9 +369,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 👥 **Team**
 
 **JOFLOW** is developed as a capstone project by Team 9:
-- **Nguyen Yen Nhi** - Lead Developer
-- **Ho Hong Anh** - AI Specialist  
-- **Ta Nhat Duy Do** - Database Architect
+- **Nguyen Yen Nhi**
+- **Ho Hong Anh**  
+- **Ta Nhat Duy Do**
 
 ---
 
@@ -382,14 +382,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Hugging Face** for open-source NLP models
 - **Leaflet** for beautiful interactive maps
 - **React Community** for amazing ecosystem
-
----
-
-## 📞 **Support**
-
-- **GitHub Issues**: [Report bugs or request features](https://github.com/InnNhi24/Joflow/issues)
-- **Email**: nhi.bs23dsy035@spjain.org
-- **Documentation**: Check the `/docs` folder for detailed guides
 
 ---
 
