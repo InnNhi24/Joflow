@@ -60,7 +60,7 @@ export default function PostModal({ isOpen, onClose, onSubmit, userRole }: PostM
   const [aiAnalysisDetails, setAiAnalysisDetails] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  // AI-powered urgency analysis with external APIs
+  // AI-powered urgency analysis with external APIs - with CORS error handling
   useEffect(() => {
     if (notes.trim().length > 10 && userRole === 'receiver') {
       setIsAnalyzing(true);
@@ -69,20 +69,24 @@ export default function PostModal({ isOpen, onClose, onSubmit, userRole }: PostM
       const timeoutId = setTimeout(async () => {
         try {
           const aiConfigs = loadAIConfigs();
+          
+          // Try AI analysis but handle CORS gracefully
           const analysis = await comprehensiveAIAnalysis(notes, aiConfigs);
           
           setAiUrgencyScore(analysis.finalScore);
           setAiAnalysisDetails(analysis);
         } catch (error) {
-          console.error('AI analysis error:', error);
-          // Fallback to local AI
+          console.log('AI analysis failed (likely CORS), using local AI:', error.message);
+          
+          // Graceful fallback to local AI without showing errors to user
           const localUrgency = analyzeUrgencyWithNLP(notes, timeNeeded);
           setAiUrgencyScore(localUrgency);
           setAiAnalysisDetails({
             localAI: { urgencyScore: localUrgency },
             finalScore: localUrgency,
             confidence: 0.7,
-            reasoning: 'Local AI only (external APIs unavailable)'
+            reasoning: 'Local AI analysis (external APIs unavailable)',
+            fallback: true
           });
         } finally {
           setIsAnalyzing(false);

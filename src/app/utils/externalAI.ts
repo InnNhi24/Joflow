@@ -241,8 +241,14 @@ export async function analyzeWithHuggingFace(
 
     return await response.json();
   } catch (error) {
-    console.error('Hugging Face error:', error);
-    return { error: error.message };
+    // Graceful handling of CORS and network errors - don't spam console
+    if (error.message.includes('CORS') || error.message.includes('fetch') || error.name === 'TypeError') {
+      // Silent fallback for CORS/network issues
+      return { error: 'API unavailable', cors: true, fallback: true };
+    } else {
+      console.error('Hugging Face error:', error);
+      return { error: error.message };
+    }
   }
 }
 
@@ -306,7 +312,7 @@ export async function comprehensiveAIAnalysis(
     promises.push(
       analyzeWithHuggingFace(text, 'emotion-detection', configs.huggingface)
         .then(result => ({ type: 'emotion', data: result }))
-        .catch(error => ({ type: 'emotion', error }))
+        .catch(error => ({ type: 'emotion', error: 'API unavailable', fallback: true }))
     );
   }
 
