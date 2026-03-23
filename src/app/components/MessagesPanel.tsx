@@ -19,6 +19,7 @@ interface MessagesPanelProps {
   onClose: () => void;
   onViewPost: (postId: string) => void;
   onUnreadCountChange?: (count: number) => void;
+  autoSelectConnectionId?: string | null;
 }
 
 export default function MessagesPanel({ 
@@ -27,7 +28,8 @@ export default function MessagesPanel({
   currentUserLocation,
   onClose,
   onViewPost,
-  onUnreadCountChange
+  onUnreadCountChange,
+  autoSelectConnectionId
 }: MessagesPanelProps) {
   // Get all connections involving current user
   const myConnections = posts.flatMap(post => 
@@ -100,6 +102,17 @@ export default function MessagesPanel({
       }
     }
   }, [selectedConnection]);
+
+  // Auto-select connection when specified
+  useEffect(() => {
+    if (autoSelectConnectionId && myConnections.length > 0) {
+      const connectionToSelect = myConnections.find(conn => conn.connection.id === autoSelectConnectionId);
+      if (connectionToSelect) {
+        console.log('🎯 Auto-selecting connection:', autoSelectConnectionId);
+        setSelectedConnection(connectionToSelect);
+      }
+    }
+  }, [autoSelectConnectionId, myConnections.length]);
 
   // Load messages for all connections on mount to get unread counts
   useEffect(() => {

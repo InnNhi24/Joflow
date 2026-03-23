@@ -60,6 +60,9 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
   // State for unread messages count (managed by MessagesPanel)
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   
+  // State for auto-selecting connection after connect
+  const [autoSelectConnectionId, setAutoSelectConnectionId] = useState<string | null>(null);
+  
   // DISABLED: Don't load unread count from database - let MessagesPanel handle it
   /*
   // Load unread messages count with real-time updates
@@ -482,7 +485,13 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
             chatActive: true
           };
           
-          toast.success('Connected successfully');
+          toast.success('Connected successfully! Opening messages...');
+          
+          // Auto-open Messages Panel after successful connection
+          setTimeout(() => {
+            setAutoSelectConnectionId(data.id); // Set connection to auto-select
+            setIsMessagesOpen(true);
+          }, 1000); // Small delay to let user see the success message
           
           return {
             ...post,
@@ -669,8 +678,8 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
     }
   };
 
-  const handleSidebarPostClick = () => {
-    // Post click handled by sidebar itself now
+  const handleSidebarPostClick = (post: Post) => {
+    setViewPost(post);
   };
   
   const handleMarkerClick = () => {
@@ -875,6 +884,7 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
           currentUserLocation={{ lat: currentUser.location_lat, lng: currentUser.location_lng }}
           onClose={() => {
             setIsMessagesOpen(false);
+            setAutoSelectConnectionId(null); // Clear auto-select when closing
             // Don't force refresh - let real-time handle it
           }}
           onViewPost={(postId) => {
@@ -888,6 +898,7 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
             console.log('📊 Unread count changed from MessagesPanel:', count);
             setUnreadMessagesCount(count);
           }}
+          autoSelectConnectionId={autoSelectConnectionId}
         />
       )}
 
