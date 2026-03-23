@@ -247,8 +247,8 @@ npm run build
 ```
 Generates optimized bundle:
 - **CSS**: 125.20 kB (gzipped: 23.51 kB)
-- **JavaScript**: 783.64 kB (gzipped: 221.08 kB)
-- **Build time**: ~9 seconds
+- **JavaScript**: 783.99 kB (gzipped: 221.34 kB)
+- **Build time**: ~5 seconds
 
 ### **Environment Variables for Production**
 Ensure all environment variables are properly configured in your deployment platform.
@@ -273,9 +273,9 @@ Ensure all environment variables are properly configured in your deployment plat
 ## 📊 **Performance Metrics**
 
 ### **Bundle Analysis**
-- **Total Size**: 783.64 kB (reasonable for feature-rich app)
+- **Total Size**: 783.99 kB (reasonable for feature-rich app)
 - **Modules**: 1,722 transformed modules
-- **Build Time**: 9.18 seconds
+- **Build Time**: 4.86 seconds
 - **Gzip Compression**: ~70% size reduction
 
 ### **Runtime Performance**
@@ -288,11 +288,10 @@ Ensure all environment variables are properly configured in your deployment plat
 
 ## 📚 **Documentation**
 
-### **Additional Resources**
-- **AI Setup Guide**: Complete AI API configuration
-- **Project Audit**: Detailed file analysis
-- **AI Features**: In-depth AI documentation
-- **Database Schema**: Complete PostgreSQL schema
+### **Available Documentation**
+- **Database Schema**: See `database/schema.sql` for complete PostgreSQL schema
+- **Environment Setup**: See `.env.example` for configuration template
+- **TypeScript Types**: See `src/app/types/index.ts` for type definitions
 
 ### **API Documentation**
 - **Supabase**: Real-time database operations
@@ -326,9 +325,7 @@ npm run dev
 
 **Build Failures**
 ```bash
-# Type check first
-npm run type-check
-# Then build
+# Check for TypeScript errors first
 npm run build
 ```
 
