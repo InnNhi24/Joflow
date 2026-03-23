@@ -12,7 +12,6 @@ import MessagesPanel from '../components/MessagesPanel';
 import MyPostsPanel from '../components/MyPostsPanel';
 import UserAccountDropdown from '../components/UserAccountDropdown';
 import ConfirmModal from '../components/ConfirmModal';
-import AITestPanel from '../components/AITestPanel';
 import { Post, Connection, ItemCategory, UserRole, TimeNeeded } from '../types';
 import { findAIMatches } from '../utils/aiMatchingEngine';
 import { calculateUrgency } from '../utils/urgencyCalculator';
@@ -40,7 +39,6 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
   const [hasMorePosts, setHasMorePosts] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
   const POSTS_PER_PAGE = 50;
-  const [showAITestPanel, setShowAITestPanel] = useState(false);
   const [connectionMessages, setConnectionMessages] = useState<Record<string, any[]>>({});
   const [newPostsCount, setNewPostsCount] = useState(0); // Track new posts for notification
   const [hoveredPostId, setHoveredPostId] = useState<string | null>(null); // For map navigation
@@ -1027,14 +1025,6 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
           <div className="flex items-center gap-2">
             {/* Premium Icon Buttons */}
             <button
-              onClick={() => setShowAITestPanel(!showAITestPanel)}
-              className="flex items-center justify-center p-2.5 text-gray-600 hover:bg-white/50 rounded-2xl transition-all duration-300 hover:scale-110 backdrop-blur-sm"
-              title="AI Test Panel"
-            >
-              <span className="text-lg">🤖</span>
-            </button>
-            
-            <button
               onClick={() => setIsMyPostsOpen(true)}
               className="flex items-center justify-center p-2.5 text-gray-600 hover:bg-white/50 rounded-2xl transition-all duration-300 hover:scale-110 backdrop-blur-sm"
               title="My Posts"
@@ -1238,9 +1228,6 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
         onCancel={handleCancel}
         connectionMessages={connectionMessages}
       />
-
-      {/* AI Test Panel */}
-      {showAITestPanel && <AITestPanel />}
     </div>
   );
 }
