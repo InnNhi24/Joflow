@@ -51,6 +51,9 @@ export interface Connection {
   receiverConfirmed: boolean;
   createdAt: Date;
   chatActive: boolean;
+  users?: {
+    name: string;
+  };
 }
 
 export interface MatchScore {

@@ -2,7 +2,8 @@
  * Beautiful Post View Modal - Modern card design with enhanced UX
  */
 
-import { X, MapPin, Clock, Package, Users, Check, XCircle, MessageCircle } from 'lucide-react';
+import React from 'react';
+import { X, MapPin, Clock, Package, Users, Check, XCircle, MessageCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Post } from '../types';
 import { getCategoryIcon } from '../utils/categoryIcons';
 import { getTimeNeededLabel } from '../utils/urgencyCalculator';
@@ -15,17 +16,39 @@ interface PostViewModalProps {
   onConnect?: (postId: string) => void;
   onConfirm?: (postId: string, connectionId: string) => void;
   onCancel?: (postId: string, connectionId: string) => void;
+  connectionMessages?: Record<string, any[]>; // Messages for each connection
+  // Navigation props
+  allPosts?: Post[]; // All available posts for navigation
+  onNavigate?: (post: Post) => void; // Callback when navigating to another post
 }
 
-export default function PostViewModal({ isOpen, post, currentUserId, onClose, onConnect, onConfirm, onCancel }: PostViewModalProps) {
+export default function PostViewModal({ 
+  isOpen, 
+  post, 
+  currentUserId, 
+  onClose, 
+  onConnect, 
+  onConfirm, 
+  onCancel, 
+  connectionMessages,
+  allPosts = [],
+  onNavigate
+}: PostViewModalProps) {
   if (!isOpen || !post) return null;
 
   const CategoryIcon = getCategoryIcon(post.category);
   const isMyPost = post.userId === currentUserId;
   
   // Check if current user is connected to this post
-  const myConnection = post.connections.find(conn => conn.connectedUserId === currentUserId);
+  // For post owner: check if there are any connections
+  // For other users: check if they are in the connections list
+  const myConnection = isMyPost 
+    ? post.connections[0] // Post owner sees the first connection (if any)
+    : post.connections.find(conn => conn.connectedUserId === currentUserId);
   const isConnected = !!myConnection;
+  
+  // Check if there are messages in this connection
+  const hasMessages = myConnection && connectionMessages && connectionMessages[myConnection.id] && connectionMessages[myConnection.id].length > 0;
 
   return (
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md" onClick={onClose}>
@@ -62,12 +85,15 @@ export default function PostViewModal({ isOpen, post, currentUserId, onClose, on
                 </div>
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-white/20 rounded-2xl transition-all duration-200 hover:scale-110"
-            >
-              <X className="w-5 h-5" />
-            </button>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={onClose}
+                className="p-2 hover:bg-white/20 rounded-2xl transition-all duration-200 hover:scale-110"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -185,7 +211,8 @@ export default function PostViewModal({ isOpen, post, currentUserId, onClose, on
 
         {/* Beautiful Footer with Action Buttons */}
         <div className="border-t border-gray-200 bg-gradient-to-r from-gray-50 to-white p-6">
-          {!isMyPost && (
+          {/* Show connection actions if user is connected OR if it's not their post */}
+          {(isConnected || !isMyPost) && (
             <div className="space-y-2">
               {/* Connection Actions */}
               {!isConnected ? (
@@ -206,12 +233,17 @@ export default function PostViewModal({ isOpen, post, currentUserId, onClose, on
                   </button>
                 </div>
               ) : (
-                // Show Confirm/Cancel buttons if connected
+                // Show different content based on whether messages have been exchanged
                 <div className="space-y-2">
                   {myConnection && (() => {
+                    // ALWAYS show confirm/cancel buttons when connected (removed hasMessages check)
                     // FIXED: Correct logic to determine user's role in connection
+                    // Post owner is always the original role (giver/receiver)
+                    // Connected user takes the opposite role
                     const isPostOwner = post.userId === currentUserId;
-                    const userIsGiver = (post.role === 'giver' && isPostOwner) || (post.role === 'receiver' && !isPostOwner);
+                    const userIsGiver = isPostOwner 
+                      ? post.role === 'giver'  // Post owner keeps original role
+                      : post.role === 'receiver'; // Connected user takes opposite role
                     
                     const needsMyConfirmation = userIsGiver 
                       ? !myConnection.giverConfirmed 
@@ -232,13 +264,18 @@ export default function PostViewModal({ isOpen, post, currentUserId, onClose, on
                           ) : needsMyConfirmation ? (
                             <div className="flex items-center justify-center gap-1 text-orange-700 font-bold text-sm">
                               <Clock className="w-4 h-4" />
-                              <span>Ready to confirm your deal?</span>
+                              <span>Needs your confirmation</span>
                             </div>
                           ) : (
                             <div className="flex items-center justify-center gap-1 text-blue-700 font-bold text-sm">
                               <Clock className="w-4 h-4" />
                               <span>Waiting for {post.userName}</span>
                             </div>
+                          )}
+                          {hasMessages && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              💬 {connectionMessages && myConnection && connectionMessages[myConnection.id] ? connectionMessages[myConnection.id].length : 0} messages exchanged
+                            </p>
                           )}
                         </div>
 
@@ -279,8 +316,8 @@ export default function PostViewModal({ isOpen, post, currentUserId, onClose, on
             </div>
           )}
           
-          {/* For post owner - smaller close button */}
-          {isMyPost && (
+          {/* For post owner with no connections - just close button */}
+          {isMyPost && !isConnected && (
             <button
               onClick={onClose}
               className="w-full px-3 py-2 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white text-sm font-bold rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
@@ -288,6 +325,7 @@ export default function PostViewModal({ isOpen, post, currentUserId, onClose, on
               Close
             </button>
           )}
+
         </div>
       </div>
     </div>

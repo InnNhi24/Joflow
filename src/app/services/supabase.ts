@@ -301,7 +301,10 @@ export const postService = {
         .select(`
           *,
           users!posts_user_id_fkey(name),
-          connections(*)
+          connections(
+            *,
+            users!connections_connected_user_id_fkey(name)
+          )
         `)
         .range(page * limit, (page + 1) * limit - 1)
         .order('distance_km', { ascending: true });
@@ -329,7 +332,10 @@ export const postService = {
         .select(`
           *,
           users!posts_user_id_fkey(name),
-          connections(*)
+          connections(
+            *,
+            users!connections_connected_user_id_fkey(name)
+          )
         `)
         .eq('status', 'active')
         .order('created_at', { ascending: false })
@@ -367,7 +373,10 @@ export const postService = {
         .from('posts')
         .select(`
           *,
-          connections(*)
+          connections(
+            *,
+            users!connections_connected_user_id_fkey(name)
+          )
         `)
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
@@ -511,47 +520,184 @@ export const messageService = {
 
   async markMessageAsRead(messageId: string) {
     try {
+      console.log('Marking message as read:', messageId);
       const { data, error } = await supabase
         .from('messages')
         .update({ read_at: new Date().toISOString() })
         .eq('id', messageId)
         .select()
-        .single()
 
-      if (error) throw error
-      return { data, error: null }
+      if (error) {
+        console.error('Error marking message as read:', error);
+        throw error;
+      }
+      
+      if (!data || data.length === 0) {
+        console.log('No message found to mark as read (might already be read):', messageId);
+        return { data: null, error: null }
+      }
+      
+      console.log('Message marked as read successfully:', data[0]);
+      return { data: data[0], error: null }
     } catch (error) {
       console.error('Error marking message as read:', error)
       return { data: null, error }
     }
   },
 
-  async getUnreadMessagesCount(userId: string) {
+  async markAllMessagesAsRead(connectionId: string, userId: string) {
     try {
-      // Get connections where user is involved
-      const { data: connections, error: connError } = await supabase
-        .from('connections')
-        .select('id')
-        .or(`connected_user_id.eq.${userId},post_id.in.(select id from posts where user_id = '${userId}')`)
-
-      if (connError) throw connError
-
-      if (!connections || connections.length === 0) {
-        return { data: 0, error: null }
+      console.log('🔄 Marking all messages as read for connection:', connectionId, 'user:', userId);
+      
+      // Check current user authentication
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        console.error('❌ No authenticated user:', userError);
+        return { data: null, error: 'No authenticated user' };
+      }
+      console.log('👤 Current authenticated user:', user.id);
+      
+      // First, let's see what messages we're trying to update
+      const { data: messagesToUpdate, error: selectError } = await supabase
+        .from('messages')
+        .select('id, message, read_at, sender_id, connection_id')
+        .eq('connection_id', connectionId)
+        .neq('sender_id', userId)
+        .is('read_at', null);
+      
+      if (selectError) {
+        console.error('❌ Error selecting messages to update:', selectError);
+        throw selectError;
+      }
+      
+      console.log('📋 Messages to mark as read:', messagesToUpdate?.length || 0, messagesToUpdate);
+      
+      if (!messagesToUpdate || messagesToUpdate.length === 0) {
+        console.log('✅ No messages to mark as read');
+        return { data: [], error: null };
       }
 
-      const connectionIds = connections.map(c => c.id)
+      // Try to update messages one by one for better error tracking
+      const updateResults = [];
+      for (const message of messagesToUpdate) {
+        console.log(`🔄 Updating message ${message.id}...`);
+        const { data: updateData, error: updateError } = await supabase
+          .from('messages')
+          .update({ read_at: new Date().toISOString() })
+          .eq('id', message.id)
+          .select();
+        
+        if (updateError) {
+          console.error(`❌ Error updating message ${message.id}:`, updateError);
+          return { data: null, error: updateError };
+        }
+        
+        if (updateData && updateData.length > 0) {
+          console.log(`✅ Successfully updated message ${message.id}`);
+          updateResults.push(updateData[0]);
+        } else {
+          console.warn(`⚠️ No data returned for message ${message.id} update`);
+        }
+      }
+      
+      console.log('✅ Successfully marked all messages as read:', updateResults.length, 'messages updated');
+      console.log('📊 Updated messages:', updateResults);
+      return { data: updateResults, error: null };
+    } catch (error) {
+      console.error('💥 Exception in markAllMessagesAsRead:', error);
+      return { data: null, error };
+    }
+  },
 
-      // Count unread messages in those connections
-      const { data, error } = await supabase
-        .from('messages')
+  async getUnreadMessagesCount(userId: string) {
+    try {
+      console.log('Getting unread count for user:', userId);
+      
+      // Get connections where user is directly connected
+      const { data: directConnections, error: directError } = await supabase
+        .from('connections')
         .select('id')
-        .is('read_at', null)
-        .neq('sender_id', userId)
-        .in('connection_id', connectionIds)
+        .eq('connected_user_id', userId)
 
-      if (error) throw error
-      return { data: data?.length || 0, error: null }
+      if (directError) throw directError
+      console.log('Direct connections:', directConnections);
+
+      // Get connections where user owns the post
+      const { data: ownedPosts, error: postsError } = await supabase
+        .from('posts')
+        .select('id')
+        .eq('user_id', userId)
+
+      if (postsError) throw postsError
+      console.log('Owned posts:', ownedPosts);
+
+      if (ownedPosts && ownedPosts.length > 0) {
+        const postIds = ownedPosts.map(p => p.id)
+        const { data: ownedConnections, error: ownedError } = await supabase
+          .from('connections')
+          .select('id')
+          .in('post_id', postIds)
+
+        if (ownedError) throw ownedError
+        console.log('Owned connections:', ownedConnections);
+
+        // Combine all connection IDs
+        const allConnections = [
+          ...(directConnections || []),
+          ...(ownedConnections || [])
+        ]
+        console.log('All connections:', allConnections);
+
+        if (allConnections.length === 0) {
+          console.log('No connections found, returning 0');
+          return { data: 0, error: null }
+        }
+
+        const connectionIds = allConnections.map(c => c.id)
+        console.log('Connection IDs:', connectionIds);
+
+        // Count unread messages in those connections
+        const { data, error } = await supabase
+          .from('messages')
+          .select('id')
+          .is('read_at', null)
+          .neq('sender_id', userId)
+          .in('connection_id', connectionIds)
+
+        if (error) throw error
+        console.log('Unread messages query result:', data);
+        console.log('📋 Unread messages details:', data?.map(m => ({ 
+          id: m.id, 
+          connection_id: m.connection_id, 
+          sender_id: m.sender_id
+        })));
+        const count = data?.length || 0;
+        console.log('📊 Final unread count from database:', count);
+        return { data: count, error: null }
+      } else {
+        // Only direct connections
+        if (!directConnections || directConnections.length === 0) {
+          console.log('No direct connections found, returning 0');
+          return { data: 0, error: null }
+        }
+
+        const connectionIds = directConnections.map(c => c.id)
+        console.log('Direct connection IDs only:', connectionIds);
+
+        // Count unread messages in those connections
+        const { data, error } = await supabase
+          .from('messages')
+          .select('id')
+          .is('read_at', null)
+          .neq('sender_id', userId)
+          .in('connection_id', connectionIds)
+
+        if (error) throw error
+        console.log('Unread messages query result (direct only):', data);
+        const count = data?.length || 0;
+        console.log('Final unread count (direct only):', count);
+        return { data: count, error: null }
+      }
     } catch (error) {
       console.error('Error getting unread messages count:', error)
       return { data: 0, error }

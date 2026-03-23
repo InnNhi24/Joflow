@@ -110,6 +110,9 @@ ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE connections ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 
+-- Enable real-time for messages table
+ALTER PUBLICATION supabase_realtime ADD TABLE messages;
+
 -- Users can read all user profiles but only update their own
 CREATE POLICY "Users can view all profiles" ON users
     FOR SELECT USING (true);
@@ -170,6 +173,18 @@ CREATE POLICY "Users can view connection messages" ON messages
 
 CREATE POLICY "Users can send messages" ON messages
     FOR INSERT WITH CHECK (auth.uid() = sender_id);
+
+-- Users can update messages (for marking as read)
+CREATE POLICY "Users can update connection messages" ON messages
+    FOR UPDATE USING (
+        auth.uid() IN (
+            SELECT connected_user_id FROM connections WHERE id = connection_id
+            UNION
+            SELECT user_id FROM posts p 
+            JOIN connections c ON p.id = c.post_id 
+            WHERE c.id = connection_id
+        )
+    );
 
 -- Constraint to limit connections per post (max 5)
 CREATE OR REPLACE FUNCTION check_connection_limit()

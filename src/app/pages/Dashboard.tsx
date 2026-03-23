@@ -40,6 +40,7 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
   const [currentPage, setCurrentPage] = useState(0);
   const POSTS_PER_PAGE = 50;
   const [showAITestPanel, setShowAITestPanel] = useState(false);
+  const [connectionMessages, setConnectionMessages] = useState<Record<string, any[]>>({});
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -56,22 +57,35 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
     onConfirm: () => {}
   });
 
-  // Calculate unread messages count
-  // State for unread messages count
+  // State for unread messages count (managed by MessagesPanel)
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
-
+  
+  // DISABLED: Don't load unread count from database - let MessagesPanel handle it
+  /*
   // Load unread messages count with real-time updates
   useEffect(() => {
+    let refreshTimeout: NodeJS.Timeout;
+    
     const loadUnreadCount = async () => {
       try {
+        console.log('🔄 Loading unread count for user:', currentUser.id);
         const { data } = await messageService.getUnreadMessagesCount(currentUser.id);
+        console.log('📈 Unread count result:', data);
         setUnreadMessagesCount(data || 0);
       } catch (error) {
-        console.error('Error loading unread count:', error);
+        console.error('❌ Error loading unread count:', error);
       }
     };
 
+    const debouncedLoadUnreadCount = () => {
+      clearTimeout(refreshTimeout);
+      refreshTimeout = setTimeout(loadUnreadCount, 500);
+    };
+
     loadUnreadCount();
+    
+    // Also load unread count every 30 seconds to ensure accuracy
+    const intervalId = setInterval(loadUnreadCount, 30000);
     
     // Set up real-time subscription for messages
     const messagesSubscription = supabase
@@ -83,17 +97,62 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
           schema: 'public',
           table: 'messages'
         },
-        () => {
-          // Reload unread count when messages change
+        (payload) => {
+          console.log('Messages real-time change:', payload);
+          // Force refresh unread count immediately when new message arrives
           loadUnreadCount();
         }
       )
       .subscribe();
     
     return () => {
+      clearTimeout(refreshTimeout);
+      clearInterval(intervalId);
       supabase.removeChannel(messagesSubscription);
     };
   }, [currentUser.id]);
+  */
+
+  // Load unread count only when MessagesPanel is not open
+  useEffect(() => {
+    if (!isMessagesOpen) {
+      // Load unread count from database when MessagesPanel is closed
+      const loadUnreadCount = async () => {
+        try {
+          console.log('🔄 Loading unread count from database (MessagesPanel closed)');
+          const { data } = await messageService.getUnreadMessagesCount(currentUser.id);
+          console.log('📈 Database unread count result:', data);
+          setUnreadMessagesCount(data || 0);
+        } catch (error) {
+          console.error('❌ Error loading unread count:', error);
+        }
+      };
+
+      loadUnreadCount();
+      
+      // Set up real-time subscription for new messages when MessagesPanel is closed
+      const messagesSubscription = supabase
+        .channel('messages-changes-dashboard')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'messages'
+          },
+          (payload) => {
+            console.log('📨 New message received (MessagesPanel closed):', payload);
+            // Reload unread count when new message arrives
+            loadUnreadCount();
+          }
+        )
+        .subscribe();
+      
+      return () => {
+        supabase.removeChannel(messagesSubscription);
+      };
+    }
+  }, [isMessagesOpen, currentUser.id]);
 
   // Load posts from Supabase on component mount
   useEffect(() => {
@@ -140,7 +199,6 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
       supabase.removeChannel(connectionsSubscription);
     };
   }, [currentUser]);
-
   const loadPosts = async (page = 0, append = false) => {
     if (!append) setIsLoading(true);
     
@@ -199,11 +257,12 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
             id: conn.id,
             postId: conn.post_id,
             connectedUserId: conn.connected_user_id,
-            connectedUserName: 'Connected User',
+            connectedUserName: conn.users?.name || 'Connected User',
             giverConfirmed: conn.giver_confirmed,
             receiverConfirmed: conn.receiver_confirmed,
             createdAt: new Date(conn.created_at),
-            chatActive: conn.chat_active || true
+            chatActive: conn.chat_active || true,
+            users: conn.users
           })) || []
         }));
 
@@ -229,11 +288,12 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
             id: conn.id,
             postId: conn.post_id,
             connectedUserId: conn.connected_user_id,
-            connectedUserName: 'Connected User',
+            connectedUserName: conn.users?.name || 'Connected User',
             giverConfirmed: conn.giver_confirmed,
             receiverConfirmed: conn.receiver_confirmed,
             createdAt: new Date(conn.created_at),
-            chatActive: conn.chat_active || true
+            chatActive: conn.chat_active || true,
+            users: conn.users
           })) || []
         }));
 
@@ -254,7 +314,6 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
       if (!append) setIsLoading(false);
     }
   };
-
   const loadMorePosts = () => {
     if (hasMorePosts && !isLoading) {
       const nextPage = currentPage + 1;
@@ -312,6 +371,15 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
     return scores;
   }, [posts, filteredPosts, currentUser.id]);
 
+  // Load messages when viewing a post
+  useEffect(() => {
+    if (viewPost) {
+      const myConnection = viewPost.connections.find(conn => conn.connectedUserId === currentUser.id);
+      if (myConnection) {
+        loadConnectionMessages(myConnection.id);
+      }
+    }
+  }, [viewPost, currentUser.id]);
   const handleCreatePost = async (postData: {
     category: ItemCategory;
     item: string;
@@ -381,7 +449,6 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
       toast.error('Failed to create post');
     }
   };
-
   const handleConnect = async (postId: string) => {
     try {
       const { data, error } = await connectionService.createConnection(postId, currentUser.id);
@@ -429,7 +496,6 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
       toast.error('Failed to connect');
     }
   };
-
   const handleConfirm = async (postId: string, connectionId: string) => {
     try {
       // Find the connection and post
@@ -506,7 +572,6 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
       toast.error('Failed to confirm connection');
     }
   };
-
   const handleCancel = async (postId: string, connectionId: string) => {
     try {
       const post = posts.find(p => p.id === postId);
@@ -590,6 +655,19 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
       toast.error('Failed to cancel connection');
     }
   };
+  const loadConnectionMessages = async (connectionId: string) => {
+    try {
+      const { data, error } = await messageService.getConnectionMessages(connectionId);
+      if (!error && data) {
+        setConnectionMessages(prev => ({
+          ...prev,
+          [connectionId]: data
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading connection messages:', error);
+    }
+  };
 
   const handleSidebarPostClick = () => {
     // Post click handled by sidebar itself now
@@ -637,7 +715,6 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
     setPosts(prev => prev.filter(p => p.id !== postId));
     toast.success('Post deleted');
   };
-  
   return (
     <div className="h-screen flex flex-col bg-gradient-to-br from-[#D5E7F2] via-white to-[#73C6D9]/20">
       {/* Premium Glass Nav */}
@@ -706,7 +783,6 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
           </div>
         </div>
       </nav>
-
       {/* Main - Full Screen Map with Floating Overlay */}
       <div className="flex-1 overflow-hidden relative">
         {isLoading ? (
@@ -733,6 +809,7 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
               highlightedPostIds={highlightedPostIds}
               onMarkerClick={handleMarkerClick}
               userLocationName={currentUser.location_name}
+              allPosts={filteredPostsForMap.filter(p => p.role !== userRole)}
             />
             
             {/* Premium Dropdown List (Toggle) */}
@@ -776,14 +853,13 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
           <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 z-[9998]">
             <button
               onClick={loadMorePosts}
-              className="px-6 py-3 bg-white/90 backdrop-blur-sm text-[#1261A6] font-semibold rounded-full shadow-lg hover:bg-white hover:shadow-xl transition-all duration-300 border border-[#1261A6]/20"
+              className="px-6 py-3 bg-white/90 backdrop-blur-sm text-[#1261A6] font-semibold rounded-full shadow-lg hover:bg-white hover:shadow-xl transition-all duration-300"
             >
               Load More Posts ({POSTS_PER_PAGE} more)
             </button>
           </div>
         )}
       </div>
-
       <PostModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -797,13 +873,20 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
           posts={posts}
           currentUserId={currentUser.id}
           currentUserLocation={{ lat: currentUser.location_lat, lng: currentUser.location_lng }}
-          onClose={() => setIsMessagesOpen(false)}
+          onClose={() => {
+            setIsMessagesOpen(false);
+            // Don't force refresh - let real-time handle it
+          }}
           onViewPost={(postId) => {
             const post = posts.find(p => p.id === postId);
             if (post) {
               setViewPost(post);
               setIsMessagesOpen(false);
             }
+          }}
+          onUnreadCountChange={(count) => {
+            console.log('📊 Unread count changed from MessagesPanel:', count);
+            setUnreadMessagesCount(count);
           }}
         />
       )}
@@ -824,26 +907,13 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
         />
       )}
 
-      {/* Footer */}
-      <div className="border-t border-gray-200 bg-white px-6 py-3 flex items-center justify-between text-sm">
-        <div className="flex items-center gap-4 text-gray-600">
-          <span>Active: {posts.filter(p => p.status === 'active').length}</span>
-          <span>Yours: {posts.filter(p => p.userId === currentUser.id).length}</span>
-        </div>
-        {highlightedPostIds.length > 0 && (
-          <span className="text-[#1261A6] font-medium">
-            {highlightedPostIds.length} matches
-          </span>
-        )}
-      </div>
-
       {/* Confirm Modal */}
       <ConfirmModal
         isOpen={confirmModal.isOpen}
         title={confirmModal.title}
         message={confirmModal.message}
-        confirmText={confirmModal.confirmText || 'Confirm'}
-        cancelText={confirmModal.cancelText || 'Cancel'}
+        confirmText={confirmModal.confirmText}
+        cancelText={confirmModal.cancelText}
         type={confirmModal.type}
         onConfirm={confirmModal.onConfirm}
         onCancel={confirmModal.onCancel || (() => setConfirmModal({ ...confirmModal, isOpen: false }))}
@@ -858,6 +928,7 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
         onConnect={handleConnect}
         onConfirm={handleConfirm}
         onCancel={handleCancel}
+        connectionMessages={connectionMessages}
       />
 
       {/* AI Test Panel */}

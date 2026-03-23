@@ -32,13 +32,14 @@ interface MapViewProps {
   highlightedPostIds?: string[];
   hoveredPostId?: string | null;
   onMarkerClick?: (post: Post) => void;
-  userLocationName?: string; // Add location name prop
+  userLocationName?: string;
+  allPosts?: Post[];
 }
 
 type MarkerFilter = 'all' | 'opposite-role' | 'matches';
 
 // Custom marker icons with beautiful design
-const createCustomIcon = (color: string, isHighlighted: boolean = false, urgency: number = 1) => {
+const createCustomIcon = (color: string, isHighlighted: boolean = false, postCount: number = 1) => {
   const size = isHighlighted ? 40 : 32;
   const pulseColor = color.replace('#', '');
   
@@ -82,7 +83,7 @@ const createCustomIcon = (color: string, isHighlighted: boolean = false, urgency
           transition: all 0.3s ease;
           cursor: pointer;
         ">
-          ${urgency}
+          ${postCount}
           
           <!-- Highlight star -->
           ${isHighlighted ? `
@@ -132,7 +133,6 @@ const createCustomIcon = (color: string, isHighlighted: boolean = false, urgency
     iconAnchor: [size/2, size/2],
   });
 };
-
 // Component to handle map updates
 function MapUpdater({ center, hoveredPostId, posts }: { 
   center: { lat: number; lng: number }; 
@@ -156,6 +156,229 @@ function MapUpdater({ center, hoveredPostId, posts }: {
   return null;
 }
 
+// PopupContent component for navigation between posts
+function PopupContent({ 
+  post, 
+  isHighlighted, 
+  distance, 
+  userConnection, 
+  canConnect, 
+  allPosts, 
+  onConnect, 
+  onConfirm, 
+  onCancel,
+  onNavigate,
+  currentUserId
+}: {
+  post: Post;
+  isHighlighted: boolean;
+  distance: number;
+  userConnection: any;
+  canConnect: boolean;
+  allPosts: Post[];
+  onConnect: (postId: string) => void;
+  onConfirm: (postId: string, connectionId: string) => void;
+  onCancel: (postId: string, connectionId: string) => void;
+  onNavigate: (postId: string) => void;
+  currentUserId: string;
+}) {
+  const CategoryIcon = getCategoryIcon(post.category);
+  
+  // Navigation logic - now works with posts at same location
+  const currentIndex = allPosts.findIndex(p => p.id === post.id);
+  const hasPrevious = currentIndex > 0;
+  const hasNext = currentIndex < allPosts.length - 1;
+  const previousPost = hasPrevious ? allPosts[currentIndex - 1] : null;
+  const nextPost = hasNext ? allPosts[currentIndex + 1] : null;
+  return (
+    <div className="p-0 min-w-[280px] bg-white rounded-2xl overflow-hidden shadow-xl relative">
+      {/* Navigation Buttons - Only show if multiple posts */}
+      {allPosts.length > 1 && hasPrevious && (
+        <button
+          onClick={() => previousPost && onNavigate(previousPost.id)}
+          className="absolute left-[-50px] top-1/2 transform -translate-y-1/2 z-10 w-10 h-10 bg-white/95 backdrop-blur-sm hover:bg-white text-gray-700 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110 flex items-center justify-center border border-gray-200"
+          title="Previous post"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path>
+          </svg>
+        </button>
+      )}
+      
+      {allPosts.length > 1 && hasNext && (
+        <button
+          onClick={() => nextPost && onNavigate(nextPost.id)}
+          className="absolute right-[-50px] top-1/2 transform -translate-y-1/2 z-10 w-10 h-10 bg-white/95 backdrop-blur-sm hover:bg-white text-gray-700 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110 flex items-center justify-center border border-gray-200"
+          title="Next post"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+          </svg>
+        </button>
+      )}
+
+      {/* Header with gradient background */}
+      <div className={`px-4 py-3 ${
+        post.role === 'giver' 
+          ? 'bg-gradient-to-r from-[#1261A6] to-[#2A95BF]' 
+          : 'bg-gradient-to-r from-red-500 to-red-600'
+      } text-white`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold">
+              {post.role === 'giver' ? '🤝 Giver' : '🙏 Receiver'}
+            </span>
+            {isHighlighted && (
+              <span className="text-xs font-medium px-2 py-1 rounded-full bg-white/20 backdrop-blur-sm">
+                ⭐ Top Match
+              </span>
+            )}
+            {allPosts.length > 1 && (
+              <span className="text-xs font-medium px-2 py-1 rounded-full bg-white/20 backdrop-blur-sm">
+                {currentIndex + 1}/{allPosts.length}
+              </span>
+            )}
+          </div>
+          <div className="flex gap-0.5">
+            {Array.from({ length: 5 }, (_, i) => (
+              <div
+                key={i}
+                className={`w-1.5 h-6 rounded-full ${
+                  i < post.urgency ? 'bg-white/90' : 'bg-white/30'
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+      
+      <div className="p-4">
+        {/* User Info */}
+        <div className="mb-4">
+          <h3 className="font-bold text-gray-900 text-lg">{post.userName}</h3>
+          <div className="flex items-center gap-4 text-sm text-gray-600 mt-1">
+            <span className="flex items-center gap-1">
+              📍 {formatDistance(distance)}
+            </span>
+            <span className="flex items-center gap-1">
+              ⏱️ {getTimeNeededLabel(post.timeNeeded)}
+            </span>
+          </div>
+        </div>
+        
+        {/* Item Info with beautiful card */}
+        <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 mb-4 border border-gray-200">
+          <div className="flex items-start gap-3">
+            <div className={`p-3 rounded-xl ${
+              post.role === 'giver' 
+                ? 'bg-gradient-to-br from-blue-100 to-blue-200 text-blue-700' 
+                : 'bg-gradient-to-br from-red-100 to-red-200 text-red-700'
+            } shadow-sm`}>
+              <CategoryIcon className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-gray-500 capitalize font-medium mb-1">{post.category}</p>
+              <p className="font-bold text-gray-900 text-base mb-1">{post.item}</p>
+              <p className="text-sm text-gray-600">Quantity: <span className="font-semibold">{post.quantity}</span></p>
+            </div>
+          </div>
+        </div>
+        
+        {/* Notes */}
+        {post.notes && (
+          <div className="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200">
+            <div className="flex items-start gap-2">
+              <span className="text-amber-600 text-sm">💬</span>
+              <p className="text-sm text-amber-800 leading-relaxed">{post.notes}</p>
+            </div>
+          </div>
+        )}
+        
+        {/* Connection Status */}
+        <div className="flex items-center justify-between mb-4 p-3 rounded-xl bg-gray-50 border border-gray-200">
+          <span className="text-sm text-gray-600">Connections</span>
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1">
+              {Array.from({ length: 5 }, (_, i) => (
+                <div
+                  key={i}
+                  className={`w-2 h-2 rounded-full ${
+                    i < post.connections.length ? 'bg-green-400' : 'bg-gray-300'
+                  }`}
+                />
+              ))}
+            </div>
+            <span className="text-sm font-semibold text-gray-700">
+              {post.connections.length}/5
+            </span>
+          </div>
+        </div>
+        
+        {/* Actions */}
+        {userConnection ? (
+          <div className="space-y-3">
+            <div className="text-center p-3 rounded-xl bg-green-50 border border-green-200">
+              <div className="text-sm font-semibold text-green-700 mb-2">
+                ✅ Connected Successfully
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className={`p-2 rounded-lg text-center font-medium ${
+                  (post.role === 'giver' ? userConnection.giverConfirmed : userConnection.receiverConfirmed)
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-gray-100 text-gray-600'
+                }`}>
+                  You: {(post.role === 'giver' ? userConnection.giverConfirmed : userConnection.receiverConfirmed) ? '✅' : '⏳'}
+                </div>
+                <div className={`p-2 rounded-lg text-center font-medium ${
+                  (post.role === 'giver' ? userConnection.receiverConfirmed : userConnection.giverConfirmed)
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-gray-100 text-gray-600'
+                }`}>
+                  Them: {(post.role === 'giver' ? userConnection.receiverConfirmed : userConnection.giverConfirmed) ? '✅' : '⏳'}
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {!(post.role === 'giver' ? userConnection.receiverConfirmed : userConnection.giverConfirmed) && (
+                <button
+                  onClick={() => onConfirm(post.id, userConnection.id)}
+                  className="flex-1 px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white text-sm font-semibold rounded-xl hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-lg hover:shadow-xl"
+                >
+                  ✅ Confirm
+                </button>
+              )}
+              <button
+                onClick={() => onCancel(post.id, userConnection.id)}
+                className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white text-sm font-semibold rounded-xl hover:from-red-600 hover:to-red-700 transition-all duration-300 shadow-lg hover:shadow-xl"
+              >
+                ❌ Cancel
+              </button>
+            </div>
+          </div>
+        ) : canConnect ? (
+          <button
+            onClick={() => onConnect(post.id)}
+            className={`w-full px-4 py-3 text-white text-sm font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl ${
+              post.role === 'giver'
+                ? 'bg-gradient-to-r from-[#1261A6] to-[#2A95BF] hover:from-[#0f4f85] hover:to-[#1e7a9a]'
+                : 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700'
+            }`}
+          >
+            🤝 Connect Now
+          </button>
+        ) : post.userId === currentUserId ? (
+          <div className="text-center p-3 rounded-xl bg-blue-50 border border-blue-200">
+            <span className="text-sm font-medium text-blue-700">📝 Your Post</span>
+          </div>
+        ) : (
+          <div className="text-center p-3 rounded-xl bg-gray-50 border border-gray-200">
+            <span className="text-sm text-gray-500">🚫 Max connections reached</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 export default function MapView({ 
   posts, 
   center, 
@@ -167,11 +390,13 @@ export default function MapView({
   highlightedPostIds = [],
   hoveredPostId,
   onMarkerClick,
-  userLocationName
+  userLocationName,
+  allPosts = []
 }: MapViewProps) {
   const [markerFilter, setMarkerFilter] = useState<MarkerFilter>('all');
   const [isMapLoaded, setIsMapLoaded] = useState(false);
-  
+  const [currentPopupPostId, setCurrentPopupPostId] = useState<string | null>(null);
+
   // Filter posts based on marker filter
   const visiblePosts = posts.filter(post => {
     if (markerFilter === 'all') return true;
@@ -291,201 +516,78 @@ export default function MapView({
         </Marker>
         
         {/* Post Markers */}
-        {visiblePosts.map((post) => {
-          const isHighlighted = highlightedPostIds.includes(post.id);
-          const isHovered = hoveredPostId === post.id;
-          const color = isHighlighted 
-            ? MARKER_COLORS.highlighted
-            : post.role === 'giver' 
-              ? MARKER_COLORS.giver
-              : MARKER_COLORS.receiver;
-          
-          // Use pulsing marker for highlighted posts, regular for others
-          const markerIcon = isHighlighted 
-            ? createPulsingMarker(color, true)
-            : createCustomIcon(color, false, post.urgency);
-          
-          const CategoryIcon = getCategoryIcon(post.category);
-          const distance = calculateDistance(
-            center.lat,
-            center.lng,
-            post.location.lat,
-            post.location.lng
-          );
-          
-          const userConnection = post.connections.find(c => c.connectedUserId === currentUserId);
-          const canConnect = post.connections.length < 5 && !userConnection && post.userId !== currentUserId;
-          
-          return (
-            <Marker
-              key={post.id}
-              position={[post.location.lat, post.location.lng]}
-              icon={markerIcon}
-              eventHandlers={{
-                click: () => onMarkerClick?.(post),
-              }}
-            >
-              <Popup maxWidth={320} className="custom-popup">
-                <div className="p-0 min-w-[280px] bg-white rounded-2xl overflow-hidden shadow-xl">
-                  {/* Header with gradient background */}
-                  <div className={`px-4 py-3 ${
-                    post.role === 'giver' 
-                      ? 'bg-gradient-to-r from-[#1261A6] to-[#2A95BF]' 
-                      : 'bg-gradient-to-r from-red-500 to-red-600'
-                  } text-white`}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold">
-                          {post.role === 'giver' ? '🤝 Giver' : '🙏 Receiver'}
-                        </span>
-                        {isHighlighted && (
-                          <span className="text-xs font-medium px-2 py-1 rounded-full bg-white/20 backdrop-blur-sm">
-                            ⭐ Top Match
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex gap-0.5">
-                        {Array.from({ length: 5 }, (_, i) => (
-                          <div
-                            key={i}
-                            className={`w-1.5 h-6 rounded-full ${
-                              i < post.urgency ? 'bg-white/90' : 'bg-white/30'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="p-4">
-                    {/* User Info */}
-                    <div className="mb-4">
-                      <h3 className="font-bold text-gray-900 text-lg">{post.userName}</h3>
-                      <div className="flex items-center gap-4 text-sm text-gray-600 mt-1">
-                        <span className="flex items-center gap-1">
-                          📍 {formatDistance(distance)}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          ⏱️ {getTimeNeededLabel(post.timeNeeded)}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    {/* Item Info with beautiful card */}
-                    <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 mb-4 border border-gray-200">
-                      <div className="flex items-start gap-3">
-                        <div className={`p-3 rounded-xl ${
-                          post.role === 'giver' 
-                            ? 'bg-gradient-to-br from-blue-100 to-blue-200 text-blue-700' 
-                            : 'bg-gradient-to-br from-red-100 to-red-200 text-red-700'
-                        } shadow-sm`}>
-                          <CategoryIcon className="w-5 h-5" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-gray-500 capitalize font-medium mb-1">{post.category}</p>
-                          <p className="font-bold text-gray-900 text-base mb-1">{post.item}</p>
-                          <p className="text-sm text-gray-600">Quantity: <span className="font-semibold">{post.quantity}</span></p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Notes */}
-                    {post.notes && (
-                      <div className="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200">
-                        <div className="flex items-start gap-2">
-                          <span className="text-amber-600 text-sm">💬</span>
-                          <p className="text-sm text-amber-800 leading-relaxed">{post.notes}</p>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Connection Status */}
-                    <div className="flex items-center justify-between mb-4 p-3 rounded-xl bg-gray-50 border border-gray-200">
-                      <span className="text-sm text-gray-600">Connections</span>
-                      <div className="flex items-center gap-2">
-                        <div className="flex gap-1">
-                          {Array.from({ length: 5 }, (_, i) => (
-                            <div
-                              key={i}
-                              className={`w-2 h-2 rounded-full ${
-                                i < post.connections.length ? 'bg-green-400' : 'bg-gray-300'
-                              }`}
-                            />
-                          ))}
-                        </div>
-                        <span className="text-sm font-semibold text-gray-700">
-                          {post.connections.length}/5
-                        </span>
-                      </div>
-                    </div>
-                    
-                    {/* Actions */}
-                    {userConnection ? (
-                      <div className="space-y-3">
-                        <div className="text-center p-3 rounded-xl bg-green-50 border border-green-200">
-                          <div className="text-sm font-semibold text-green-700 mb-2">
-                            ✅ Connected Successfully
-                          </div>
-                          <div className="grid grid-cols-2 gap-2 text-xs">
-                            <div className={`p-2 rounded-lg text-center font-medium ${
-                              (post.role === 'giver' ? userConnection.giverConfirmed : userConnection.receiverConfirmed)
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-gray-100 text-gray-600'
-                            }`}>
-                              You: {(post.role === 'giver' ? userConnection.giverConfirmed : userConnection.receiverConfirmed) ? '✅' : '⏳'}
-                            </div>
-                            <div className={`p-2 rounded-lg text-center font-medium ${
-                              (post.role === 'giver' ? userConnection.receiverConfirmed : userConnection.giverConfirmed)
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-gray-100 text-gray-600'
-                            }`}>
-                              Them: {(post.role === 'giver' ? userConnection.receiverConfirmed : userConnection.giverConfirmed) ? '✅' : '⏳'}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          {!(post.role === 'giver' ? userConnection.receiverConfirmed : userConnection.giverConfirmed) && (
-                            <button
-                              onClick={() => onConfirm(post.id, userConnection.id)}
-                              className="flex-1 px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white text-sm font-semibold rounded-xl hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-lg hover:shadow-xl"
-                            >
-                              ✅ Confirm
-                            </button>
-                          )}
-                          <button
-                            onClick={() => onCancel(post.id, userConnection.id)}
-                            className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white text-sm font-semibold rounded-xl hover:from-red-600 hover:to-red-700 transition-all duration-300 shadow-lg hover:shadow-xl"
-                          >
-                            ❌ Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : canConnect ? (
-                      <button
-                        onClick={() => onConnect(post.id)}
-                        className={`w-full px-4 py-3 text-white text-sm font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl ${
-                          post.role === 'giver'
-                            ? 'bg-gradient-to-r from-[#1261A6] to-[#2A95BF] hover:from-[#0f4f85] hover:to-[#1e7a9a]'
-                            : 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700'
-                        }`}
-                      >
-                        🤝 Connect Now
-                      </button>
-                    ) : post.userId === currentUserId ? (
-                      <div className="text-center p-3 rounded-xl bg-blue-50 border border-blue-200">
-                        <span className="text-sm font-medium text-blue-700">📝 Your Post</span>
-                      </div>
-                    ) : (
-                      <div className="text-center p-3 rounded-xl bg-gray-50 border border-gray-200">
-                        <span className="text-sm text-gray-500">🚫 Max connections reached</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </Popup>
-            </Marker>
-          );
-        })}
+        {(() => {
+          // Group posts by location (same lat/lng)
+          const groupedPosts = visiblePosts.reduce((groups, post) => {
+            const locationKey = `${post.location.lat.toFixed(6)},${post.location.lng.toFixed(6)}`;
+            if (!groups[locationKey]) {
+              groups[locationKey] = [];
+            }
+            groups[locationKey].push(post);
+            return groups;
+          }, {} as Record<string, Post[]>);
+
+          // Render one marker per location group
+          return Object.entries(groupedPosts).map(([locationKey, postsAtLocation]) => {
+            const firstPost = postsAtLocation[0];
+            const postCount = postsAtLocation.length;
+            const hasHighlighted = postsAtLocation.some(p => highlightedPostIds.includes(p.id));
+            const isHovered = postsAtLocation.some(p => hoveredPostId === p.id);
+            
+            // Determine color based on role priority (highlighted > giver > receiver)
+            const color = hasHighlighted 
+              ? MARKER_COLORS.highlighted
+              : postsAtLocation.some(p => p.role === 'giver')
+                ? MARKER_COLORS.giver
+                : MARKER_COLORS.receiver;
+            
+            // Use pulsing marker for highlighted posts, regular for others
+            const markerIcon = hasHighlighted 
+              ? createPulsingMarker(color, true)
+              : createCustomIcon(color, false, postCount);
+            
+            const CategoryIcon = getCategoryIcon(firstPost.category);
+            const distance = calculateDistance(
+              center.lat,
+              center.lng,
+              firstPost.location.lat,
+              firstPost.location.lng
+            );
+            
+            const userConnection = firstPost.connections.find(c => c.connectedUserId === currentUserId);
+            const canConnect = firstPost.connections.length < 5 && !userConnection && firstPost.userId !== currentUserId;
+            
+            return (
+              <Marker
+                key={locationKey}
+                position={[firstPost.location.lat, firstPost.location.lng]}
+                icon={markerIcon}
+                eventHandlers={{
+                  click: () => {
+                    setCurrentPopupPostId(firstPost.id);
+                    onMarkerClick?.(firstPost);
+                  },
+                }}
+              >
+                <Popup maxWidth={320} className="custom-popup">
+                  <PopupContent 
+                    post={firstPost}
+                    isHighlighted={hasHighlighted}
+                    distance={distance}
+                    userConnection={userConnection}
+                    canConnect={canConnect}
+                    allPosts={postsAtLocation}
+                    onConnect={onConnect}
+                    onConfirm={onConfirm}
+                    onCancel={onCancel}
+                    onNavigate={setCurrentPopupPostId}
+                    currentUserId={currentUserId}
+                  />
+                </Popup>
+              </Marker>
+            );
+          });
+        })()}
       </MapContainer>
       
       {/* Legend - Bottom Right with beautiful design */}
@@ -526,7 +628,7 @@ export default function MapView({
                 ? 'bg-gradient-to-br from-[#1261A6] to-[#2A95BF]' 
                 : 'bg-gradient-to-br from-red-500 to-red-600'
             }`} />
-            <span className="text-sm font-medium text-gray-700 capitalize">
+            <span className="text-sm font-medium text-gray-700">
               {oppositeRole === 'giver' ? '🤝 Givers' : '🙏 Receivers'}
             </span>
           </button>
