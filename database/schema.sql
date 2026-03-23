@@ -113,6 +113,12 @@ ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 -- Enable real-time for messages table
 ALTER PUBLICATION supabase_realtime ADD TABLE messages;
 
+-- Enable real-time for posts table (for live updates)
+ALTER PUBLICATION supabase_realtime ADD TABLE posts;
+
+-- Enable real-time for connections table (for live connection updates)
+ALTER PUBLICATION supabase_realtime ADD TABLE connections;
+
 -- Users can read all user profiles but only update their own
 CREATE POLICY "Users can view all profiles" ON users
     FOR SELECT USING (true);

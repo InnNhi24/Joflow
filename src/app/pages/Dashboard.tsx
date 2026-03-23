@@ -16,6 +16,7 @@ import AITestPanel from '../components/AITestPanel';
 import { Post, Connection, ItemCategory, UserRole, TimeNeeded } from '../types';
 import { findAIMatches } from '../utils/aiMatchingEngine';
 import { calculateUrgency } from '../utils/urgencyCalculator';
+import { calculateDistance } from '../utils/matchingEngine';
 import { postService, connectionService, messageService, DatabaseConnection, supabase } from '../services/supabase';
 import type { DatabaseUser } from '../services/supabase';
 import { toast } from 'sonner';
@@ -41,6 +42,8 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
   const POSTS_PER_PAGE = 50;
   const [showAITestPanel, setShowAITestPanel] = useState(false);
   const [connectionMessages, setConnectionMessages] = useState<Record<string, any[]>>({});
+  const [newPostsCount, setNewPostsCount] = useState(0); // Track new posts for notification
+  const [hoveredPostId, setHoveredPostId] = useState<string | null>(null); // For map navigation
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -161,48 +164,221 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
   useEffect(() => {
     loadPosts();
     
-    // Set up real-time subscriptions
+    // Set up real-time subscriptions with better handling
+    console.log('🔄 Setting up real-time subscriptions...');
+    
     const postsSubscription = supabase
       .channel('posts-changes')
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'posts'
         },
         (payload) => {
-          console.log('Post change:', payload);
-          // Reload posts when any post changes
-          loadPosts();
+          console.log('🆕 New post created:', payload.new);
+          const newPost = payload.new as any;
+          
+          // Convert database post to frontend format
+          const convertedPost: Post = {
+            id: newPost.id,
+            userId: newPost.user_id,
+            userName: 'New User', // Will be updated when we get user info
+            role: newPost.role,
+            category: newPost.category,
+            item: newPost.item,
+            quantity: newPost.quantity,
+            urgency: newPost.urgency,
+            timeNeeded: newPost.time_needed,
+            notes: newPost.notes || '',
+            location: {
+              lat: newPost.location_lat,
+              lng: newPost.location_lng,
+              address: newPost.location_address
+            },
+            status: newPost.status,
+            createdAt: new Date(newPost.created_at),
+            connections: []
+          };
+          
+          // Add to posts array if not already exists
+          setPosts(prev => {
+            const exists = prev.some(p => p.id === convertedPost.id);
+            if (!exists) {
+              console.log('➕ Adding new post to state:', convertedPost.item);
+              setNewPostsCount(count => count + 1); // Increment new posts counter
+              return [...prev, convertedPost];
+            }
+            return prev;
+          });
+          
+          // Show toast notification for new posts from others
+          if (newPost.user_id !== currentUser.id) {
+            toast.success(`🆕 New ${newPost.role} post: ${newPost.item}`, {
+              duration: 4000,
+              action: {
+                label: 'View',
+                onClick: () => {
+                  const post = posts.find(p => p.id === newPost.id);
+                  if (post) setViewPost(post);
+                }
+              }
+            });
+          }
         }
       )
-      .subscribe();
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'posts'
+        },
+        (payload) => {
+          console.log('📝 Post updated:', payload.new);
+          const updatedPost = payload.new as any;
+          
+          // Update existing post in state
+          setPosts(prev => prev.map(post => {
+            if (post.id === updatedPost.id) {
+              const updated = {
+                ...post,
+                item: updatedPost.item,
+                quantity: updatedPost.quantity,
+                urgency: updatedPost.urgency,
+                timeNeeded: updatedPost.time_needed,
+                notes: updatedPost.notes || '',
+                status: updatedPost.status,
+                location: {
+                  lat: updatedPost.location_lat,
+                  lng: updatedPost.location_lng,
+                  address: updatedPost.location_address
+                }
+              };
+              
+              // Show toast for location changes
+              if (post.location.lat !== updatedPost.location_lat || 
+                  post.location.lng !== updatedPost.location_lng) {
+                toast.success(`📍 ${updatedPost.item} moved to new location!`, {
+                  duration: 4000,
+                  action: {
+                    label: 'View on Map',
+                    onClick: () => {
+                      // Navigate to updated location on map
+                      setViewPost(updated);
+                      setHoveredPostId(updatedPost.id);
+                      setTimeout(() => setHoveredPostId(null), 3000);
+                    }
+                  }
+                });
+              }
+              
+              return updated;
+            }
+            return post;
+          }));
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'posts'
+        },
+        (payload) => {
+          console.log('🗑️ Post deleted:', payload.old);
+          const deletedPost = payload.old as any;
+          
+          // Remove from posts array
+          setPosts(prev => prev.filter(post => post.id !== deletedPost.id));
+          toast.info('A post was removed');
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 Posts subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Successfully subscribed to posts changes');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Error subscribing to posts changes');
+        }
+      });
 
     const connectionsSubscription = supabase
       .channel('connections-changes')
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'connections'
         },
         (payload) => {
-          console.log('Connection change:', payload);
-          // Reload posts when connections change
+          console.log('🤝 New connection created:', payload.new);
+          // Reload posts to get updated connection info
           loadPosts();
         }
       )
-      .subscribe();
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'connections'
+        },
+        (payload) => {
+          console.log('📝 Connection updated:', payload.new);
+          // Reload posts to get updated connection info
+          loadPosts();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'connections'
+        },
+        (payload) => {
+          console.log('🗑️ Connection deleted:', payload.old);
+          // Reload posts to get updated connection info
+          loadPosts();
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 Connections subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Successfully subscribed to connections changes');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Error subscribing to connections changes');
+        }
+      });
 
     // Cleanup subscriptions
     return () => {
+      console.log('🧹 Cleaning up real-time subscriptions');
       supabase.removeChannel(postsSubscription);
       supabase.removeChannel(connectionsSubscription);
     };
   }, [currentUser]);
   const loadPosts = async (page = 0, append = false) => {
+    console.log('🔄 Loading posts - page:', page, 'append:', append);
+    console.log('👤 Current user:', { 
+      id: currentUser.id, 
+      name: currentUser.name,
+      location: { 
+        lat: currentUser.location_lat, 
+        lng: currentUser.location_lng,
+        name: currentUser.location_name 
+      } 
+    });
+    
+    // Check if user location is in Vietnam
+    const isInVietnam = currentUser.location_lat >= 8.0 && currentUser.location_lat <= 24.0 && 
+                       currentUser.location_lng >= 102.0 && currentUser.location_lng <= 110.0;
+    console.log('🇻🇳 User location in Vietnam?', isInVietnam);
+    
     if (!append) setIsLoading(true);
     
     try {
@@ -210,7 +386,7 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
       const { data: otherPosts, error: otherError } = await postService.getPostsInRadius(
         currentUser.location_lat,
         currentUser.location_lng,
-        50, // 50km radius
+        999999, // No radius limit - show all posts in Vietnam
         currentUser.id, // exclude current user's posts from the list
         page,
         POSTS_PER_PAGE
@@ -219,19 +395,41 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
       // Load current user's own posts (always load all user's posts)
       const { data: myPosts, error: myError } = await postService.getUserPosts(currentUser.id);
 
+      console.log('📊 Query results:');
+      console.log('  - Other posts:', otherPosts?.length || 0);
+      console.log('  - My posts:', myPosts?.length || 0);
+
       if (otherError) {
-        console.error('Error loading other posts:', otherError);
+        console.error('❌ Error loading other posts:', otherError);
         toast.error('Failed to load posts from others');
       }
 
       if (myError) {
-        console.error('Error loading my posts:', myError);
+        console.error('❌ Error loading my posts:', myError);
         toast.error('Failed to load your posts');
       }
 
       // Combine both arrays
       const newOtherPosts = otherPosts || [];
       const allMyPosts = myPosts || [];
+      
+      console.log('📋 Raw posts from database:');
+      console.log('  - Other posts:', newOtherPosts.map(p => ({ 
+        id: p.id, 
+        item: p.item, 
+        location: { lat: p.location_lat, lng: p.location_lng },
+        distance: calculateDistance(currentUser.location_lat, currentUser.location_lng, p.location_lat, p.location_lng).toFixed(2) + 'km'
+      })));
+      console.log('  - My posts:', allMyPosts.map(p => ({ 
+        id: p.id, 
+        item: p.item, 
+        location: { lat: p.location_lat, lng: p.location_lng },
+        distance: calculateDistance(currentUser.location_lat, currentUser.location_lng, p.location_lat, p.location_lng).toFixed(2) + 'km'
+      })));
+      
+      // Test distance to Da Nang (16.0544, 108.2022)
+      const distanceToDaNang = calculateDistance(currentUser.location_lat, currentUser.location_lng, 16.0544, 108.2022);
+      console.log('📏 Distance to Da Nang (16.0544, 108.2022):', distanceToDaNang.toFixed(2), 'km');
       
       // Check if we have more posts to load
       setHasMorePosts(newOtherPosts.length === POSTS_PER_PAGE);
@@ -327,16 +525,29 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
 
   // Filter posts for matching algorithm - only show opposite role
   const filteredPosts = useMemo(() => {
-    return posts.filter(post => {
+    console.log('🔍 Filtering posts for matching algorithm');
+    console.log('📊 Total posts:', posts.length);
+    console.log('👤 User role:', userRole);
+    
+    const filtered = posts.filter(post => {
       // If user is a giver, show only receivers (for matching)
       // If user is a receiver, show only givers (for matching)
-      return post.role !== userRole;
+      const shouldShow = post.role !== userRole;
+      console.log(`📝 Post "${post.item}" (${post.role}) - Show: ${shouldShow}`);
+      return shouldShow;
     });
+    
+    console.log('✅ Filtered posts for matching:', filtered.length);
+    return filtered;
   }, [posts, userRole]);
 
   // All posts for map display (including user's own posts)
   const filteredPostsForMap = useMemo(() => {
-    return posts.filter(post => post.status === 'active');
+    console.log('🗺️ Filtering posts for map display');
+    const filtered = posts.filter(post => post.status === 'active');
+    console.log('📍 Active posts for map:', filtered.length);
+    console.log('📋 Map posts:', filtered.map(p => ({ id: p.id, item: p.item, role: p.role, status: p.status })));
+    return filtered;
   }, [posts]);
 
   const highlightedPostIds = useMemo(() => {
@@ -392,10 +603,15 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
     useCurrentLocation: boolean;
     manualLocation?: { lat: number; lng: number };
   }) => {
+    console.log('🆕 Creating new post:', postData);
+    console.log('👤 Current user location:', { lat: currentUser.location_lat, lng: currentUser.location_lng, name: currentUser.location_name });
+    
     try {
       const location = postData.useCurrentLocation 
         ? { lat: currentUser.location_lat, lng: currentUser.location_lng }
         : postData.manualLocation || { lat: currentUser.location_lat, lng: currentUser.location_lng };
+
+      console.log('📍 Using location for post:', location);
 
       const { data, error } = await postService.createPost({
         userId: currentUser.id,
@@ -414,12 +630,14 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
       });
 
       if (error) {
-        console.error('Error creating post:', error);
+        console.error('❌ Error creating post:', error);
         toast.error('Failed to create post');
         return;
       }
 
       if (data) {
+        console.log('✅ Post created successfully in database:', data);
+        
         // Convert database post to frontend format and add to local state
         const newPost: Post = {
           id: data.id,
@@ -442,8 +660,14 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
           connections: []
         };
 
+        console.log('📝 Adding post to local state:', newPost);
+        
         // Add to local state for immediate UI update
-        setPosts(prev => [...prev, newPost]);
+        setPosts(prev => {
+          const updated = [...prev, newPost];
+          console.log('📊 Updated posts array length:', updated.length);
+          return updated;
+        });
         setIsModalOpen(false);
         toast.success('Post created successfully');
       }
@@ -686,38 +910,95 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
     // Post click handled by map itself now
   };
 
-  const handleEditPost = (postId: string, updates: {
+  const handleEditPost = async (postId: string, updates: {
     item: string;
     quantity: number;
     timeNeeded: TimeNeeded;
     notes: string;
     location?: { lat: number; lng: number; address?: string };
   }) => {
-    setPosts(prev => prev.map(post => {
-      if (post.id === postId) {
-        const updatedPost = {
-          ...post,
-          item: updates.item,
-          quantity: updates.quantity,
-          timeNeeded: updates.timeNeeded,
-          urgency: calculateUrgency(updates.timeNeeded),
-          notes: updates.notes
-        };
-        
-        // Update location if provided
-        if (updates.location) {
-          updatedPost.location = {
-            lat: updates.location.lat,
-            lng: updates.location.lng,
-            address: updates.location.address
-          };
-        }
-        
-        return updatedPost;
+    console.log('📝 Editing post:', postId, updates);
+    
+    try {
+      // Update in database first
+      const dbUpdates: any = {
+        item: updates.item,
+        quantity: updates.quantity,
+        time_needed: updates.timeNeeded,
+        urgency: calculateUrgency(updates.timeNeeded),
+        notes: updates.notes
+      };
+      
+      // Add location updates if provided
+      if (updates.location) {
+        dbUpdates.location_lat = updates.location.lat;
+        dbUpdates.location_lng = updates.location.lng;
+        dbUpdates.location_address = updates.location.address;
+        console.log('📍 Updating location:', updates.location);
       }
-      return post;
-    }));
-    toast.success('Post updated successfully');
+      
+      const { data, error } = await postService.updatePost(postId, dbUpdates);
+      
+      if (error) {
+        console.error('❌ Error updating post in database:', error);
+        toast.error('Failed to update post');
+        return;
+      }
+      
+      console.log('✅ Post updated in database:', data);
+      
+      // Update local state
+      setPosts(prev => prev.map(post => {
+        if (post.id === postId) {
+          const updatedPost = {
+            ...post,
+            item: updates.item,
+            quantity: updates.quantity,
+            timeNeeded: updates.timeNeeded,
+            urgency: calculateUrgency(updates.timeNeeded),
+            notes: updates.notes
+          };
+          
+          // Update location if provided
+          if (updates.location) {
+            updatedPost.location = {
+              lat: updates.location.lat,
+              lng: updates.location.lng,
+              address: updates.location.address
+            };
+          }
+          
+          return updatedPost;
+        }
+        return post;
+      }));
+      
+      toast.success('Post updated successfully');
+      
+      // Show special toast for location changes
+      if (updates.location) {
+        setTimeout(() => {
+          toast.success('📍 Location updated on map!', {
+            duration: 3000,
+            action: {
+              label: 'View',
+              onClick: () => {
+                const updatedPost = posts.find(p => p.id === postId);
+                if (updatedPost) {
+                  setViewPost(updatedPost);
+                  setHoveredPostId(postId); // Trigger map navigation
+                  setTimeout(() => setHoveredPostId(null), 2000); // Clear after 2s
+                }
+              }
+            }
+          });
+        }, 1000);
+      }
+      
+    } catch (error) {
+      console.error('💥 Exception updating post:', error);
+      toast.error('Failed to update post');
+    }
   };
 
   const handleDeletePost = (postId: string) => {
@@ -775,6 +1056,21 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
               )}
             </button>
             
+            {/* New Posts Notification */}
+            {newPostsCount > 0 && (
+              <button
+                onClick={() => {
+                  setNewPostsCount(0); // Reset counter when clicked
+                  // Scroll to top to see new posts
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-2xl transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-xl animate-pulse"
+                title={`${newPostsCount} new posts available`}
+              >
+                <span className="text-sm font-bold">🆕 {newPostsCount}</span>
+              </button>
+            )}
+            
             {/* Premium New Post Button */}
             <button
               onClick={() => setIsModalOpen(true)}
@@ -816,6 +1112,7 @@ export default function Dashboard({ userRole, userProfile, onUpdateProfile, onLo
               onConfirm={handleConfirm}
               onCancel={handleCancel}
               highlightedPostIds={highlightedPostIds}
+              hoveredPostId={hoveredPostId}
               onMarkerClick={handleMarkerClick}
               userLocationName={currentUser.location_name}
               allPosts={filteredPostsForMap.filter(p => p.role !== userRole)}

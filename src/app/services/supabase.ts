@@ -289,43 +289,11 @@ export const postService = {
     page: number = 0,
     limit: number = 50
   ) {
-    try {
-      // Use PostGIS function for efficient spatial queries
-      const { data, error } = await supabase
-        .rpc('get_posts_within_radius', {
-          center_lat: centerLat,
-          center_lng: centerLng,
-          radius_km: radiusKm,
-          exclude_user_id: excludeUserId || null
-        })
-        .select(`
-          *,
-          users!posts_user_id_fkey(name),
-          connections(
-            *,
-            users!connections_connected_user_id_fkey(name)
-          )
-        `)
-        .range(page * limit, (page + 1) * limit - 1)
-        .order('distance_km', { ascending: true });
-
-      if (error) throw error;
-      return { data, error: null };
-    } catch (error) {
-      console.error('Error fetching posts:', error);
-      // Fallback to JavaScript filtering if PostGIS function fails
-      return this.getPostsInRadiusFallback(centerLat, centerLng, radiusKm, excludeUserId, page, limit);
-    }
-  },
-
-  async getPostsInRadiusFallback(
-    centerLat: number,
-    centerLng: number,
-    radiusKm: number = 50,
-    excludeUserId?: string,
-    page: number = 0,
-    limit: number = 50
-  ) {
+    console.log('🔍 getPostsInRadius called with:', { centerLat, centerLng, radiusKm, excludeUserId, page, limit });
+    
+    // LOAD ALL POSTS - No radius filtering for Vietnam-wide coverage
+    console.log('🌍 Loading ALL posts (no radius limit) for Vietnam-wide coverage');
+    
     try {
       let query = supabase
         .from('posts')
@@ -348,6 +316,57 @@ export const postService = {
       const { data, error } = await query;
 
       if (error) throw error;
+      
+      console.log('📊 ALL posts query returned:', data?.length || 0, 'posts');
+      console.log('📋 Posts details:', data?.map(p => ({ 
+        id: p.id, 
+        item: p.item, 
+        user: p.users?.name,
+        location: { lat: p.location_lat, lng: p.location_lng },
+        status: p.status
+      })));
+
+      return { data, error: null };
+    } catch (error) {
+      console.error('❌ Error in all-posts query:', error);
+      return { data: null, error };
+    }
+  },
+
+  async getPostsInRadiusFallback(
+    centerLat: number,
+    centerLng: number,
+    radiusKm: number = 50,
+    excludeUserId?: string,
+    page: number = 0,
+    limit: number = 50
+  ) {
+    console.log('🔄 Using fallback method for posts in radius');
+    
+    try {
+      let query = supabase
+        .from('posts')
+        .select(`
+          *,
+          users!posts_user_id_fkey(name),
+          connections(
+            *,
+            users!connections_connected_user_id_fkey(name)
+          )
+        `)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .range(page * limit, (page + 1) * limit - 1);
+
+      if (excludeUserId) {
+        query = query.neq('user_id', excludeUserId);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+      
+      console.log('📊 Fallback query returned:', data?.length || 0, 'posts');
 
       // Filter by radius (JavaScript fallback)
       const filteredData = data?.filter(post => {
@@ -357,12 +376,14 @@ export const postService = {
           post.location_lat,
           post.location_lng
         );
+        console.log(`📍 Post "${post.item}" distance: ${distance.toFixed(2)}km (limit: ${radiusKm}km)`);
         return distance <= radiusKm;
       });
 
+      console.log('✅ Fallback filtered results:', filteredData?.length || 0, 'posts within radius');
       return { data: filteredData, error: null };
     } catch (error) {
-      console.error('Error fetching posts (fallback):', error);
+      console.error('❌ Error fetching posts (fallback):', error);
       return { data: null, error };
     }
   },
